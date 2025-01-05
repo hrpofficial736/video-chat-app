@@ -1,18 +1,25 @@
+// index.ts
 import express from "express";
 import http from "http";
 import cors from "cors";
-import { Server } from "socket.io";
+import { initSocket } from "./sockets/sockets";
 
 const app = express();
 const server = http.createServer(app);
-export const io = new Server(server, {
-    cors: {
-        origin: "http://localhost:5173",
-        methods: ['GET', 'POST', 'PUT', 'DELETE']
-    }
+
+// Middleware
+app.use(cors());
+
+// Test endpoint
+app.get("/", (req, res) => {
+  res.send("Server is running!");
 });
 
-app.use(cors());
-server.listen(3000, () => {
-    console.log("Server is listening on port : 3000");
-})
+// Initialize Socket.IO
+initSocket(server);
+
+// Start server
+const PORT = 3000;
+server.listen(PORT, () => {
+  console.log(`Server is listening on port: ${PORT}`);
+});
