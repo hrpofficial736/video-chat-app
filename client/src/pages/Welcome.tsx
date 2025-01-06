@@ -1,11 +1,13 @@
 import React, { useEffect } from 'react';
 import { useState } from 'react';
 import { initializeSocketServer, getSocketInstance } from '../services/socketService';
+import { useNavigate } from 'react-router-dom';
 
 const Welcome : React.FC = () => {
+  const navigate = useNavigate();
   // Initializing socket connection with server in background
   useEffect(() => {
-    initializeSocketServer();
+    initializeSocketServer(navigate);
   }, []);
 
   const [joinRoomformData, setJoinRoomFormData] = useState<{
@@ -18,21 +20,20 @@ const Welcome : React.FC = () => {
 
   const [createRoomFormData, setCreateRoomFormData] = useState<{
     email: string;
-    roomCode: string;
   }>({
     email: "",
-    roomCode: "",
   });
 
   const handleJoinRoomFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const socket = getSocketInstance();
-    socket !== null && socket.emit("join-room", joinRoomformData);
+    socket !== null ? socket.emit("join-room", joinRoomformData) : console.log("Socket service is null!");
   }
   const handleCreateRoomFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const socket = getSocketInstance();
-    socket !== null && socket.emit("join-room", joinRoomformData);
+    socket !== null ? socket.emit("create-room", createRoomFormData) : console.log("Socket service is null!");
+    ;
   };
 
 
@@ -116,22 +117,7 @@ const Welcome : React.FC = () => {
             className="text-white border border-white rounded-xl bg-black px-2"
             type="email"
           />
-          <br />
-          <label>Room-Code</label>
-          <input
-            required
-            name="roomCode"
-            onChange={(e) =>
-              setCreateRoomFormData((prevData) => ({
-                ...prevData,
-                [e.target.name]: e.target.value,
-              }))
-            }
-            value={createRoomFormData.roomCode}
-            placeholder="Room-Code"
-            className="text-white border border-white rounded-xl bg-black px-2"
-            type="text"
-          />
+          
           <button
             className="bg-white cursor-pointer mt-5 px-4 py-2 text-black font-bold rounded-xl"
             type="submit"

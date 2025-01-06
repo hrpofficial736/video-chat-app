@@ -4,6 +4,17 @@ import http from "http";
 
 let io: Server | null = null;
 
+interface JoiningUserInfo {
+  email: string;
+  roomCode: string;
+}
+
+interface Room {
+  [roomCode: string]: string[];
+}
+
+const rooms: Room = {};
+
 // Function to initialize the io instance
 export const initSocket = (server: http.Server) => {
   io = new Server(server, {
@@ -16,12 +27,89 @@ export const initSocket = (server: http.Server) => {
   io.on("connection", (socket) => {
     console.log("A user connected:", socket.id);
 
-    socket.on("join-room", (info) => {
-      console.log("Room joined:", info);
+    socket.on("join-room", (info: JoiningUserInfo) => {
+      const { email, roomCode } = info;
+
+      if (!rooms[roomCode]) {
+        rooms[roomCode] = [];
+      }
+
+      rooms[roomCode].push(socket.id);
+      socket.join(roomCode);
+
+      console.log(`Room ${roomCode} joined by ${email}.`);
+
+      socket.emit("room-joined", {
+        message: `Room ${roomCode} joined by ${email}.`,
+        roomCode: roomCode,
+      });
+
+      socket.to(roomCode).emit("user-joined", {
+        userId: socket.id,
+      });
     });
+    socket.on("create-room", (info) => {
+      const { email } = info;
+      const roomCode = Math.random().toString(36).substring(2, 10);
+      rooms[roomCode] = [];
+      console.log(`Room created by ${email} with room-code : ${roomCode}`);
+
+      socket.join(roomCode);
+      socket.emit("room-created", {
+        message: `Room created by ${email} with room-code : ${roomCode}`,
+        roomCode: roomCode,
+      });
+    });
+
+    socket.on(
+      "offer",
+      ({
+        offer,
+        roomCode,
+      }: {
+        offer: RTCSessionDescriptionInit;
+        roomCode: string;
+      }) => {
+        console.log("Offer received in room : ", roomCode);
+        socket.to(roomCode).emit("offer", offer);
+      }
+    );
+
+    socket.on(
+      "answer",
+      ({
+        answer,
+        roomCode,
+      }: {
+        answer: RTCSessionDescriptionInit;
+        roomCode: string;
+      }) => {
+        console.log("Answer received in room : ", roomCode);
+        socket.to(roomCode).emit("answer", answer);
+      }
+    );
+     socket.on(
+       "ice-candidate",
+       ({
+         candidate,
+         roomCode,
+       }: {
+         candidate: RTCIceCandidateInit;
+         roomCode: string;
+       }) => {
+         console.log(`ICE candidate received in room ${roomCode}`);
+         socket.to(roomCode).emit("ice-candidate", candidate); // Send the ICE candidate to other clients in the room
+       }
+     );
 
     socket.on("disconnect", () => {
       console.log("A user disconnected:", socket.id);
+      for (const roomCode in rooms) {
+        rooms[roomCode] = rooms[roomCode].filter((id) => id !== socket.id);
+        if (rooms[roomCode].length === 0) {
+          delete rooms[roomCode]; // Delete the room if empty
+        }
+      }
     });
   });
 };
