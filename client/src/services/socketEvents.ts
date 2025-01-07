@@ -7,13 +7,13 @@ export default function socketEventListeners (socket: Socket, navigate: Navigate
     if (socket) {
         socket.on("room-created", (info : {message: string; roomCode: string;}) => {
             console.log(info);
-            navigate(`/${info.roomCode}`);
+            navigate(`/lobby/${info.roomCode}`);
         })
         socket.on(
           "room-joined",
           (info: { message: string; roomCode: string }) => {
             console.log(info);
-            navigate(`/${info.roomCode}`);
+            navigate(`/lobby/${info.roomCode}`);
           }
         );
     }

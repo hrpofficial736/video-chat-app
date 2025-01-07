@@ -2,6 +2,7 @@ import React from "react";
 import { Route, Routes } from "react-router-dom";
 import Welcome from "./pages/Welcome";
 import VideoCallScreen from "./pages/VideoCallScreen";
+import LobbyScreen from "./pages/LobbyScreen";
 
 
 const App: React.FC = () => {
@@ -10,6 +11,7 @@ const App: React.FC = () => {
     <Routes>
       <Route path="/" element={<Welcome />} />
       <Route path="/:roomCode" element={<VideoCallScreen />} />
+      <Route path="/lobby/:roomCode" element={<LobbyScreen />} />
     </Routes>
     </>
   );
