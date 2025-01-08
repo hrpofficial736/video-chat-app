@@ -29,23 +29,27 @@ export const initSocket = (server: http.Server) => {
 
     socket.on("join-room", (info: JoiningUserInfo) => {
       const { email, roomCode } = info;
-
+      console.log(info);
+      
       if (!rooms[roomCode]) {
         rooms[roomCode] = [];
       }
 
-      rooms[roomCode].push(socket.id);
+      rooms[roomCode].push(email);
       socket.join(roomCode);
 
       console.log(`Room ${roomCode} joined by ${email}.`);
-
+      console.log(rooms[roomCode]);
+      
       socket.emit("room-joined", {
         message: `Room ${roomCode} joined by ${email}.`,
         roomCode: roomCode,
+        roomMembers: rooms[roomCode]
       });
 
       socket.to(roomCode).emit("user-joined", {
         userId: socket.id,
+        userEmail: email
       });
     });
     socket.on("create-room", (info) => {
@@ -53,11 +57,12 @@ export const initSocket = (server: http.Server) => {
       const roomCode = Math.random().toString(36).substring(2, 10);
       rooms[roomCode] = [];
       console.log(`Room created by ${email} with room-code : ${roomCode}`);
-
+      rooms[roomCode].push(email);
       socket.join(roomCode);
       socket.emit("room-created", {
         message: `Room created by ${email} with room-code : ${roomCode}`,
         roomCode: roomCode,
+        roomMembers: rooms[roomCode]
       });
     });
 

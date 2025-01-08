@@ -1,9 +1,12 @@
-import React, { useEffect } from 'react';
-import { useState } from 'react';
-import { initializeSocketServer, getSocketInstance } from '../services/socketService';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect } from "react";
+import { useState } from "react";
+import {
+  initializeSocketServer,
+  getSocketInstance,
+} from "../services/socketService";
+import { useNavigate } from "react-router-dom";
 
-const Welcome : React.FC = () => {
+const Welcome: React.FC = () => {
   const navigate = useNavigate();
   // Initializing socket connection with server in background
   useEffect(() => {
@@ -15,8 +18,8 @@ const Welcome : React.FC = () => {
     roomCode: string;
   }>({
     email: "",
-    roomCode: ""
-  })
+    roomCode: "",
+  });
 
   const [createRoomFormData, setCreateRoomFormData] = useState<{
     email: string;
@@ -27,26 +30,49 @@ const Welcome : React.FC = () => {
   const handleJoinRoomFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const socket = getSocketInstance();
-    socket !== null ? socket.emit("join-room", joinRoomformData) : console.log("Socket service is null!");
-  }
+    if (socket !== null) {
+      socket.emit("join-room", joinRoomformData);
+      socket.on(
+        "room-joined",
+        (info: { message: string; roomCode: string; roomMembers: string[]; }) => {
+          navigate(`/lobby/${info.roomCode}`, {state: {
+            email: joinRoomformData.email,
+            roomCode: info.roomCode,
+            roomMembers: info.roomMembers
+          }});
+        }
+      );
+    } else {
+      console.log("Socket is null!");
+    }
+  };
   const handleCreateRoomFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const socket = getSocketInstance();
-    socket !== null ? socket.emit("create-room", createRoomFormData) : console.log("Socket service is null!");
-    ;
+    if (socket !== null) {
+      socket.emit("create-room", createRoomFormData);
+      socket.on(
+        "room-created",
+        (info: { message: string; roomCode: string; roomMembers: string[]; }) => {
+          navigate(`/lobby/${info.roomCode}`, {state: {
+            email: createRoomFormData.email,
+            roomCode: info.roomCode,
+            roomMembers: info.roomMembers
+          }});
+        }
+      );
+    } else {
+      console.log("Socket is null!");
+    }
   };
-
 
   return (
     <div className="bg-black w-screen h-screen text-white flex flex-col gap-y-5 justify-center items-center">
-      
       <h1 className="text-4xl text-white font-bold text-center">
         Welcome to meetX
       </h1>
 
-
       <div className="flex gap-x-10 items-center">
-
         {/* Join Room */}
         <form
           onSubmit={handleJoinRoomFormSubmit}
@@ -92,9 +118,7 @@ const Welcome : React.FC = () => {
           </button>
         </form>
 
-
         <h5>Or</h5>
-
 
         {/* Create Room */}
         <form
@@ -117,7 +141,7 @@ const Welcome : React.FC = () => {
             className="text-white border border-white rounded-xl bg-black px-2"
             type="email"
           />
-          
+
           <button
             className="bg-white cursor-pointer mt-5 px-4 py-2 text-black font-bold rounded-xl"
             type="submit"
@@ -128,6 +152,6 @@ const Welcome : React.FC = () => {
       </div>
     </div>
   );
-}
+};
 
 export default Welcome;
