@@ -66,6 +66,24 @@ export const initSocket = (server: http.Server) => {
       });
     });
 
+
+    socket.on("join-video", (info : {
+      email: string;
+      roomCode: string;
+    }) => {
+      socket.to(info.roomCode).emit("user-joined-video", info.email);
+    })
+
+
+
+
+
+
+
+
+
+
+
     socket.on(
       "offer",
       ({

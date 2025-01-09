@@ -133,6 +133,7 @@ const LobbyScreen: React.FC = () => {
           </div>
         </div>
         <button onClick={() => {
+            socket?.emit("join-video", {email: useLocation().state.email, roomCode: roomCode});
             navigate(`/${roomCode}`, {state: {
                 roomMembers: roomMembers
             }})
