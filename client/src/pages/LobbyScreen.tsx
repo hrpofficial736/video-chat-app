@@ -11,7 +11,7 @@ import { getSocketInstance } from "../services/socketService";
 const LobbyScreen: React.FC = () => {
   const members : string[] = useLocation().state.roomMembers;
   console.log(members);
-  
+  const joineeEmail = useLocation().state.email;
   const { roomCode } = useParams();
   const navigate = useNavigate();
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -133,7 +133,7 @@ const LobbyScreen: React.FC = () => {
           </div>
         </div>
         <button onClick={() => {
-            socket?.emit("join-video", {email: useLocation().state.email, roomCode: roomCode});
+            socket?.emit("join-video", {email: joineeEmail, roomCode: roomCode});
             navigate(`/${roomCode}`, {state: {
                 roomMembers: roomMembers
             }})

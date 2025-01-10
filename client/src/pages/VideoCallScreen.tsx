@@ -15,6 +15,8 @@ const VideoCallScreen: React.FC = () => {
   const { roomCode } = useParams();
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const peerConnection = useRef<RTCPeerConnection | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [roomMembers, setRoomMembers] = useState<Array<string>>(
     members !== null ? members : []
   );
@@ -38,6 +40,7 @@ const VideoCallScreen: React.FC = () => {
       }
 
       setLocalStream(stream);
+      createOffer();
     } catch (error) {
       console.error("Error restarting stream:", error);
     }
@@ -65,10 +68,85 @@ const VideoCallScreen: React.FC = () => {
     setVideoAllowed((prevVideoAllowed) => !prevVideoAllowed);
   };
 
+  // signaling begins
   const socket = getSocketInstance();
-  socket?.on("user-joined-video", (email: string) => {
-    
+
+
+  const createOffer = async () => {
+    // Creating the offer
+    peerConnection.current = new RTCPeerConnection(config);
+
+    // exchanging ICE candidates
+    peerConnection.current.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket?.emit("ice-candidate", event.candidate);
+      }
+    }
+
+    // listening for incoming tracks
+
+    peerConnection.current.ontrack = (event) => {
+      if (event.streams) {
+        const [incomingRemoteStream] = event.streams;
+        setRemoteStream(incomingRemoteStream);
+      }
+    }
+
+    localStream?.getTracks().forEach((track) => {
+      peerConnection.current?.addTrack(track, localStream);
+    });
+
+    await peerConnection.current.createOffer().then((offer) => {
+      peerConnection.current?.setLocalDescription(offer);
+      socket?.emit("offer", { offer, roomCode });
+    });
+  }
+
+  // Receiving an offer and generating a corresponding answer.
+  socket?.on(
+    "offer",
+    async (offer: RTCSessionDescriptionInit) => {
+      peerConnection.current = new RTCPeerConnection();
+
+      // exchanging ICE candidates
+      peerConnection.current.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket?.emit("ice-candidate", event.candidate);
+        }
+      };
+
+
+      if (peerConnection.current) {
+        await peerConnection?.current?.setRemoteDescription(
+          new RTCSessionDescription(offer) // Setting other one's offer as our remote description
+        );
+        const answer = await peerConnection.current?.createAnswer(); // generating an answer
+        await peerConnection.current?.setLocalDescription(answer); // setting our answer as our local description
+        socket.emit("answer", {answer, roomCode});
+      } // emitting answer event to the signaling server
+    }
+  );
+
+  // Receiving an answer and starting the stream connection b/w the peers.
+  socket?.on(
+    "answer",
+    async (answer: RTCSessionDescriptionInit) => {
+     await peerConnection.current?.setRemoteDescription(
+        new RTCSessionDescription(answer)
+      );
+    }
+  );
+
+  // Adding ICE candidates to the peer connection.
+  socket?.on("ice-candidate", async (candidate: RTCIceCandidateInit) => {
+    if (candidate && peerConnection.current) {
+      await peerConnection.current?.addIceCandidate(new RTCIceCandidate(candidate));
+    }
   })
+
+
+  
+
 
   return (
     <main className="bg-black w-screen h-screen px-5 py-3 overflow-hidden">
@@ -124,8 +202,20 @@ const VideoCallScreen: React.FC = () => {
               gridTemplateRows: `auto`,
             }}
           >
-            {members.map((member, index) => {
-              return !videoAllowed ? (
+            {/* Local Video */}
+            <div className="bg-zinc-800 rounded-xl flex flex-col justify-center items-center overflow-hidden">
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover rounded-2xl"
+              />
+            </div>
+
+            {/* Remote Video Streams */}
+            {members
+              .filter((member) => member !== "local") // Assuming "local" is the local stream identifier
+              .map((member, index) => (
                 <div
                   className="w-full bg-zinc-800 rounded-xl flex flex-col gap-y-5 justify-center items-center"
                   key={index}
@@ -134,21 +224,14 @@ const VideoCallScreen: React.FC = () => {
                     {member.charAt(0).toUpperCase()}
                   </div>
                   <div className="text-white font-bold text-sm">{member}</div>
-                </div>
-              ) : (
-                <div
-                  className="bg-zinc-800 rounded-xl flex flex-col justify-center items-center overflow-hidden"
-                  key={index}
-                >
                   <video
-                    ref={localVideoRef}
+                    key={index}
                     autoPlay
                     playsInline
                     className="w-full h-full object-cover rounded-2xl"
                   />
                 </div>
-              );
-            })}
+              ))}
           </div>
 
           {/* Chat Container */}
