@@ -135,7 +135,7 @@ const LobbyScreen: React.FC = () => {
         <button onClick={() => {
             socket?.emit("join-video", {email: joineeEmail, roomCode: roomCode});
             navigate(`/${roomCode}`, {state: {
-                roomMembers: roomMembers
+                localEmail: joineeEmail
             }})
         }} className="bg-white px-6 cursor-pointer hover:bg-slate-200 py-3 rounded-lg font-bold text-black ">
           Join Call

@@ -56,6 +56,7 @@ const Welcome: React.FC = () => {
         (info: { message: string; roomCode: string; roomMembers: string[]; }) => {
           navigate(`/lobby/${info.roomCode}`, {state: {
             email: createRoomFormData.email,
+            local: true,
             roomCode: info.roomCode,
             roomMembers: info.roomMembers
           }});

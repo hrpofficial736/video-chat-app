@@ -77,13 +77,6 @@ export const initSocket = (server: http.Server) => {
 
 
 
-
-
-
-
-
-
-
     socket.on(
       "offer",
       ({

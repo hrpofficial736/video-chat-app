@@ -11,14 +11,14 @@ import {
 import { MdCallEnd } from "react-icons/md";
 
 const VideoCallScreen: React.FC = () => {
-  const members: string[] = useLocation().state.roomMembers;
+  const joineeEmail : string = useLocation().state.localEmail;
   const { roomCode } = useParams();
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [roomMembers, setRoomMembers] = useState<Array<string>>(
-    members !== null ? members : []
+    [joineeEmail]
   );
 
   const [audioAllowed, setAudioAllowed] = useState<boolean>(true);
@@ -145,6 +145,17 @@ const VideoCallScreen: React.FC = () => {
   })
 
 
+  socket?.on("user-joined-video", (email: string) => {
+    setRoomMembers((prevMembers) => {
+      if (!prevMembers.includes(email)) {
+        return [...prevMembers, email];
+      }
+      return prevMembers;
+    })
+    createOffer();
+  });
+
+
   
 
 
@@ -213,8 +224,8 @@ const VideoCallScreen: React.FC = () => {
             </div>
 
             {/* Remote Video Streams */}
-            {members
-              .filter((member) => member !== "local") // Assuming "local" is the local stream identifier
+            {roomMembers
+              .filter((member) => member !== joineeEmail) // Assuming joineeEmail is the local stream identifier
               .map((member, index) => (
                 <div
                   className="w-full bg-zinc-800 rounded-xl flex flex-col gap-y-5 justify-center items-center"
@@ -227,6 +238,7 @@ const VideoCallScreen: React.FC = () => {
                   <video
                     key={index}
                     autoPlay
+                    ref={remoteStream}
                     playsInline
                     className="w-full h-full object-cover rounded-2xl"
                   />
