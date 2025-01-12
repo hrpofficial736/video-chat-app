@@ -126,6 +126,7 @@ export const initSocket = (server: http.Server) => {
           delete rooms[roomCode]; // Delete the room if empty
         }
       }
+      socket.emit("remove-user", )
     });
   });
 };

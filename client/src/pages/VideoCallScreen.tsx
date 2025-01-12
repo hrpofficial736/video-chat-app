@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from "react";
-import { getSocketInstance } from "../services/socketService";
 import { useLocation, useParams } from "react-router-dom";
 import { config } from "../utils/googleStunServer";
 import {
@@ -11,15 +10,14 @@ import {
 import { MdCallEnd } from "react-icons/md";
 
 const VideoCallScreen: React.FC = () => {
-  const joineeEmail : string = useLocation().state.localEmail;
+  const joineeEmail: string = useLocation().state.localEmail;
+  const [remoteUserEmail, setRemoteUserEmail] = useState<string | null>(null);
   const { roomCode } = useParams();
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-  const [roomMembers, setRoomMembers] = useState<Array<string>>(
-    [joineeEmail]
-  );
 
   const [audioAllowed, setAudioAllowed] = useState<boolean>(true);
   const [videoAllowed, setVideoAllowed] = useState<boolean>(true);
@@ -43,6 +41,8 @@ const VideoCallScreen: React.FC = () => {
       createOffer();
     } catch (error) {
       console.error("Error restarting stream:", error);
+      setAudioAllowed(false);
+      setVideoAllowed(false);
     }
   };
 
@@ -69,8 +69,6 @@ const VideoCallScreen: React.FC = () => {
   };
 
   // signaling begins
-  const socket = getSocketInstance();
-
 
   const createOffer = async () => {
     // Creating the offer
@@ -81,7 +79,7 @@ const VideoCallScreen: React.FC = () => {
       if (event.candidate) {
         socket?.emit("ice-candidate", event.candidate);
       }
-    }
+    };
 
     // listening for incoming tracks
 
@@ -89,8 +87,10 @@ const VideoCallScreen: React.FC = () => {
       if (event.streams) {
         const [incomingRemoteStream] = event.streams;
         setRemoteStream(incomingRemoteStream);
+        if (remoteVideoRef.current)
+          remoteVideoRef.current.srcObject = remoteStream;
       }
-    }
+    };
 
     localStream?.getTracks().forEach((track) => {
       peerConnection.current?.addTrack(track, localStream);
@@ -100,64 +100,50 @@ const VideoCallScreen: React.FC = () => {
       peerConnection.current?.setLocalDescription(offer);
       socket?.emit("offer", { offer, roomCode });
     });
-  }
+  };
 
   // Receiving an offer and generating a corresponding answer.
-  socket?.on(
-    "offer",
-    async (offer: RTCSessionDescriptionInit) => {
-      peerConnection.current = new RTCPeerConnection();
+  socket?.on("offer", async (offer: RTCSessionDescriptionInit) => {
+    peerConnection.current = new RTCPeerConnection();
 
-      // exchanging ICE candidates
-      peerConnection.current.onicecandidate = (event) => {
-        if (event.candidate) {
-          socket?.emit("ice-candidate", event.candidate);
-        }
-      };
+    // exchanging ICE candidates
+    peerConnection.current.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket?.emit("ice-candidate", {candidate: event.candidate, roomCode: roomCode});
+      }
+    };
 
-
-      if (peerConnection.current) {
-        await peerConnection?.current?.setRemoteDescription(
-          new RTCSessionDescription(offer) // Setting other one's offer as our remote description
-        );
-        const answer = await peerConnection.current?.createAnswer(); // generating an answer
-        await peerConnection.current?.setLocalDescription(answer); // setting our answer as our local description
-        socket.emit("answer", {answer, roomCode});
-      } // emitting answer event to the signaling server
-    }
-  );
+    if (peerConnection.current) {
+      await peerConnection?.current?.setRemoteDescription(
+        new RTCSessionDescription(offer) // Setting other one's offer as our remote description
+      );
+      const answer = await peerConnection.current?.createAnswer(); // generating an answer
+      await peerConnection.current?.setLocalDescription(answer); // setting our answer as our local description
+      socket.emit("answer", { answer, roomCode });
+    } // emitting answer event to the signaling server
+  });
 
   // Receiving an answer and starting the stream connection b/w the peers.
-  socket?.on(
-    "answer",
-    async (answer: RTCSessionDescriptionInit) => {
-     await peerConnection.current?.setRemoteDescription(
-        new RTCSessionDescription(answer)
-      );
-    }
-  );
+  socket?.on("answer", async (answer: RTCSessionDescriptionInit) => {
+    if (peerConnection.current)
+      await peerConnection.current.setRemoteDescription(answer);
+    else console.log("peerConnection.current is null!");
+  });
 
   // Adding ICE candidates to the peer connection.
   socket?.on("ice-candidate", async (candidate: RTCIceCandidateInit) => {
     if (candidate && peerConnection.current) {
-      await peerConnection.current?.addIceCandidate(new RTCIceCandidate(candidate));
+      await peerConnection.current?.addIceCandidate(
+        new RTCIceCandidate(candidate)
+      );
     }
-  })
-
-
-  socket?.on("user-joined-video", (email: string) => {
-    setRoomMembers((prevMembers) => {
-      if (!prevMembers.includes(email)) {
-        return [...prevMembers, email];
-      }
-      return prevMembers;
-    })
-    createOffer();
   });
 
-
-  
-
+  socket?.on("user-joined-video", async (email: string) => {
+    console.log(email, "joined the room.");
+    await createOffer();
+    setRemoteUserEmail(email);
+  });
 
   return (
     <main className="bg-black w-screen h-screen px-5 py-3 overflow-hidden">
@@ -168,7 +154,7 @@ const VideoCallScreen: React.FC = () => {
         {/* Top Menu Bar */}
         <div className="bg-zinc-800 rounded-xl w-[90%] h-20 mt-5 px-7 flex justify-between items-center">
           <h1 className="text-xl text-white font-bold">
-            Room: {roomCode} (Total Participants: {members.length} )
+            Room: {roomCode} (Total Participants: 2 )
           </h1>
 
           {/* ToolBar */}
@@ -206,44 +192,48 @@ const VideoCallScreen: React.FC = () => {
         {/* Video and Chat Container */}
         <div className="flex w-full h-full border border-white mt-5 rounded-xl">
           {/* Videos Container */}
-          <div
-            className="w-[70%] h-full bg-zinc-900 rounded-tl-xl rounded-bl-xl p-4 grid gap-3"
-            style={{
-              gridTemplateColumns: `repeat(auto-fit, minmax(150px, 1fr))`,
-              gridTemplateRows: `auto`,
-            }}
-          >
+          <div className="w-[70%] h-full bg-zinc-900 rounded-tl-xl rounded-bl-xl p-4 flex gap-x-5">
             {/* Local Video */}
-            <div className="bg-zinc-800 rounded-xl flex flex-col justify-center items-center overflow-hidden">
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                className="w-full h-full object-cover rounded-2xl"
-              />
+            <div className="w-full bg-zinc-800 rounded-xl flex flex-col justify-center items-center overflow-hidden">
+              {videoAllowed ? (
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full rounded-2xl"
+                />
+              ) : (
+                <div className="w-full bg-zinc-800 rounded-xl flex flex-col gap-y-5 justify-center items-center">
+                  <div className="rounded-full px-7 py-5 bg-blue-500 flex justify-center items-center font-bold font-sans">
+                    {joineeEmail.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="text-white font-bold text-sm">
+                    {joineeEmail}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Remote Video Streams */}
-            {roomMembers
-              .filter((member) => member !== joineeEmail) // Assuming joineeEmail is the local stream identifier
-              .map((member, index) => (
-                <div
-                  className="w-full bg-zinc-800 rounded-xl flex flex-col gap-y-5 justify-center items-center"
-                  key={index}
-                >
-                  <div className="rounded-full px-7 py-5 bg-blue-500 flex justify-center items-center font-bold font-sans">
-                    {member.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="text-white font-bold text-sm">{member}</div>
-                  <video
-                    key={index}
-                    autoPlay
-                    ref={remoteStream}
-                    playsInline
-                    className="w-full h-full object-cover rounded-2xl"
-                  />
+            <div className="w-full bg-zinc-800 rounded-xl flex flex-col gap-y-5 justify-center items-center">
+            {remoteStream ? (
+              <video
+                autoPlay
+                ref={remoteVideoRef}
+                playsInline
+                className="w-full h-full object-cover rounded-2xl"
+              />
+            ) : remoteUserEmail ? (
+              <div className="w-full bg-zinc-800 rounded-xl flex flex-col gap-y-5 justify-center items-center">
+                <div className="rounded-full px-7 py-5 bg-blue-500 flex justify-center items-center font-bold font-sans">
+                  {remoteUserEmail?.charAt(0).toUpperCase()}
                 </div>
-              ))}
+                <div className="text-white font-bold text-sm">
+                  {remoteUserEmail}
+                </div>
+              </div>
+            ) : null}
+            </div>
           </div>
 
           {/* Chat Container */}

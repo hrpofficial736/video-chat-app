@@ -1,16 +1,18 @@
 import React, { useEffect } from "react";
 import { useState } from "react";
-import {
-  initializeSocketServer,
-  getSocketInstance,
-} from "../services/socketService";
 import { useNavigate } from "react-router-dom";
+import { io } from "socket.io-client";
+
+
+const socket = io("http://localhost:3000");
 
 const Welcome: React.FC = () => {
   const navigate = useNavigate();
   // Initializing socket connection with server in background
   useEffect(() => {
-    initializeSocketServer(navigate);
+      return () => {
+
+      }
   }, []);
 
   const [joinRoomformData, setJoinRoomFormData] = useState<{
@@ -29,7 +31,6 @@ const Welcome: React.FC = () => {
 
   const handleJoinRoomFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const socket = getSocketInstance();
     if (socket !== null) {
       socket.emit("join-room", joinRoomformData);
       socket.on(
@@ -48,7 +49,6 @@ const Welcome: React.FC = () => {
   };
   const handleCreateRoomFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const socket = getSocketInstance();
     if (socket !== null) {
       socket.emit("create-room", createRoomFormData);
       socket.on(

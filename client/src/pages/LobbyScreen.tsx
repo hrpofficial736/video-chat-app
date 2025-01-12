@@ -75,6 +75,12 @@ const LobbyScreen: React.FC = () => {
     });
   });
 
+  socket?.on("remove-user", (userEmail: string) => {
+    setRoomMembers((prevMembers) => {
+      if (!prevMembers.includes(userEmail)) return prevMembers;
+      return prevMembers.filter((member) => member !== userEmail);  
+    })
+  })
 
   return (
     <main className="bg-black w-screen h-screen px-5 py-3">
