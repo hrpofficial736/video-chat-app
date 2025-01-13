@@ -1,17 +1,16 @@
 import React, { useEffect } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { io } from "socket.io-client";
-
-
-const socket = io("http://localhost:3000");
+import { useSocket } from "../hooks/useSocket";
 
 const Welcome: React.FC = () => {
   const navigate = useNavigate();
+  const socket = useSocket();
   // Initializing socket connection with server in background
   useEffect(() => {
       return () => {
-
+        socket?.off("room-joined")
+        socket?.off("room-created");
       }
   }, []);
 
@@ -31,7 +30,7 @@ const Welcome: React.FC = () => {
 
   const handleJoinRoomFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (socket !== null) {
+    if (socket !== null && socket !== undefined) {
       socket.emit("join-room", joinRoomformData);
       socket.on(
         "room-joined",
@@ -49,7 +48,7 @@ const Welcome: React.FC = () => {
   };
   const handleCreateRoomFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (socket !== null) {
+    if (socket !== null && socket !== undefined) {
       socket.emit("create-room", createRoomFormData);
       socket.on(
         "room-created",
