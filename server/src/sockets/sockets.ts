@@ -76,7 +76,6 @@ export const initSocket = (server: http.Server) => {
 
 
 
-
     socket.on(
       "offer",
       ({
@@ -86,7 +85,7 @@ export const initSocket = (server: http.Server) => {
         offer: RTCSessionDescriptionInit;
         roomCode: string;
       }) => {
-        console.log("Offer received in room : ", roomCode);
+        console.log(`Offer ${offer} received in room :  ${roomCode}`);
         socket.to(roomCode).emit("offer", offer);
       }
     );
@@ -113,8 +112,8 @@ export const initSocket = (server: http.Server) => {
          candidate: RTCIceCandidateInit;
          roomCode: string;
        }) => {
-         console.log(`ICE candidate received in room ${roomCode}`);
-         socket.to(roomCode).emit("ice-candidate", candidate); // Send the ICE candidate to other clients in the room
+         console.log(`ICE candidate ${candidate.candidate} received in room ${roomCode}`);
+         socket.to(roomCode).emit("ice-candidate", candidate.candidate); // Send the ICE candidate to other clients in the room
        }
      );
 
