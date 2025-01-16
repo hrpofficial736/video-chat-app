@@ -8,11 +8,12 @@ import {
   FaVideoSlash,
 } from "react-icons/fa";
 import { MdCallEnd } from "react-icons/md";
-import { useSocket } from "../hooks/useSocket";
+import { getSocketInstance } from "../services/socketService";
+
 
 const VideoCallScreen: React.FC = () => {
   const { roomCode } = useParams();
-  const socket = useSocket();
+  const socket = getSocketInstance();
   const joineeEmail = useLocation().state.email;
 
   // Remote User Email 
@@ -34,9 +35,9 @@ const VideoCallScreen: React.FC = () => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
-  // Stream Ref Elements
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream | null>(null);
+  // Stream States
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
   // PeerConnection Ref
   const peerConnection = useRef<RTCPeerConnection | null>(null);
@@ -49,125 +50,112 @@ const VideoCallScreen: React.FC = () => {
       video: videoAllowed,
     });
     if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-    localStreamRef.current = stream;
-    createConnectionOffer();
+    setLocalStream(stream);
   };
 
   // Create Offer
-
   const createConnectionOffer = async () => {
+    startStream();
+    if (peerConnection.current) {
+      peerConnection.current.close();
+    }
     peerConnection.current = new RTCPeerConnection(config);
 
     // Adding local video stream tracks in peer connection
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => {
-        peerConnection.current?.addTrack(track, localStreamRef.current!);
+    if (localStream) {
+      localStream.getTracks().forEach((track) => {
+        peerConnection.current?.addTrack(track, localStream);
       });
     }
-
-
     // Listening for ice candidates
-
     peerConnection.current.onicecandidate = (event) => {
+      const candidate = event.candidate;
       if (event.candidate) {
-        socket?.emit("ice-candidate", {candidate: event.candidate, roomCode: roomCode});
+        socket?.emit("ice-candidate", {candidate, roomCode});
       }
     };
-
-
-
     // Listening for incoming tracks
-    peerConnection.current.ontrack = (event) => {
-     console.log("Remote track received: ", event.streams);
-     if (!remoteStreamRef.current) {
-       remoteStreamRef.current = new MediaStream();
-     }
-     event.streams[0].getTracks().forEach((track) => {
-       remoteStreamRef.current?.addTrack(track);
-     });
+   peerConnection.current.ontrack = (event) => {
+     setRemoteStream(event.streams[0]);
      if (remoteVideoRef.current) {
-       remoteVideoRef.current.srcObject = remoteStreamRef.current;
+       remoteVideoRef.current.srcObject = event.streams[0];
      }
-    };
-
-
+   };
     // Creating offer...
      const offer = await peerConnection.current.createOffer();
-     peerConnection.current.setLocalDescription(offer);
+     await peerConnection.current.setLocalDescription(offer);
      console.log("Offer made : ", offer);
-     socket?.emit("offer", { offer, roomCode });
+     if (socket?.connected) socket?.emit("offer", { offer, roomCode });
+     else console.log("Socket not connected!")
   };
-
-
-  // Listening and Handling for incoming offers.
-
-   socket?.on(
-    "offer",
-    async (offer: RTCSessionDescriptionInit) => {
-      peerConnection.current = new RTCPeerConnection(config);
-
-      // exchanging ICE candidates
-      peerConnection.current.onicecandidate = (event) => {
-        if (event.candidate) {
-          socket?.emit("ice-candidate", {candidate: event.candidate, roomCode: roomCode});
-        }
-      };
-
-      if (peerConnection.current) {
-        await peerConnection.current.setRemoteDescription(offer);
-        const answer = await peerConnection.current.createAnswer();
-        await peerConnection.current.setLocalDescription(answer);
-        socket.emit("answer", {answer, roomCode});
-      }
-    })
-
-
-    // Listening for corresponding answers
-
-    // socket?.on("answer", async (answer: RTCSessionDescriptionInit) => {
-    //   await peerConnection.current?.setRemoteDescription(answer);
-    // })
-
-    // // Adding ice candidates to the peer connection
-
-    // socket?.on("ice-candidate", async (candidate: RTCIceCandidate) => {
-    //   if (candidate) {
-    //     console.log("Candidates coming are : ", candidate);
-        
-    //     await peerConnection.current?.addIceCandidate(candidate);
-    //   }
-    // })
-
-
-    // socket?.on("user-joined-video", (email: string) => {
-    //   setRemoteUserEmail(email);
-    // })
 
 
   // Start stream in background
 
   useEffect(() => {
-    startStream();
+      const handleOffer = async (offer: RTCSessionDescriptionInit) => {
+        startStream();
+        peerConnection.current = new RTCPeerConnection(config);
+
+        peerConnection.current.ontrack = (event) => {
+          console.log("Remote track received: ", event.streams);
+          
+          setRemoteStream(event.streams[0]);
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = event.streams[0];
+          }
+        };
+
+        // exchanging ICE candidates
+        peerConnection.current.onicecandidate = (event) => {
+          const candidate = event.candidate;
+          if (event.candidate) {
+            socket?.emit("ice-candidate", { candidate, roomCode });
+          }
+        };
+
+        if (peerConnection.current) {
+          await peerConnection.current.setRemoteDescription(offer);
+          const answer = await peerConnection.current.createAnswer();
+          await peerConnection.current.setLocalDescription(answer);
+          socket?.emit("answer", { answer, roomCode });
+        }
+      };
+
+
+      const handleAnswer = async (answer: RTCSessionDescriptionInit) => {
+        console.log("answer aaya");
+        await peerConnection.current?.setRemoteDescription(answer);
+        console.log(remoteStream);  
+      };
+
+
+      const handleIceCandidate = async (candidate: RTCIceCandidateInit) => {
+        if (candidate) {
+          console.log("Candidates coming are : ", candidate);
+
+          await peerConnection.current?.addIceCandidate(candidate);
+        }
+      };
+
+      const handleUserJoined = (info: {email: string}) => {
+        setRemoteUserEmail(info.email);
+        createConnectionOffer();
+      }
+
+      socket?.on("offer", handleOffer);
+      socket?.on("answer", handleAnswer);
+      socket?.on("ice-candidate", handleIceCandidate);
+      socket?.on("user-joined-video", handleUserJoined);
+
     return () => {
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+      }
       peerConnection.current?.close();
       peerConnection.current = null;
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      socket?.off("offer");
-      socket?.off("answer");
-      socket?.off("ice-candidate");
-      socket?.off("user-joined-video");
     };
-  }, [audioAllowed, videoAllowed, socket]);
-
-  useEffect(() => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-    }
-    startStream();
-  }, [audioAllowed, videoAllowed]);
-
+  }, [socket, roomCode]);
 
   return (
     <main className="bg-black w-screen h-screen px-5 py-3 overflow-hidden">
@@ -181,7 +169,7 @@ const VideoCallScreen: React.FC = () => {
           {/* Controls */}
           <div className="flex gap-x-10">
             <button
-            onClick={toggleAudio}
+              onClick={toggleAudio}
               className={`p-4 rounded-lg text-white transition-colors ${
                 audioAllowed
                   ? "bg-zinc-700 hover:bg-zinc-600"
@@ -195,7 +183,7 @@ const VideoCallScreen: React.FC = () => {
               )}
             </button>
             <button
-            onClick={toggleVideo}
+              onClick={toggleVideo}
               className={`p-4 rounded-lg text-white transition-colors ${
                 videoAllowed
                   ? "bg-zinc-700 hover:bg-zinc-600"
@@ -243,12 +231,11 @@ const VideoCallScreen: React.FC = () => {
 
             {/* Remote Video */}
             <div className="w-1/2 bg-zinc-800 rounded-xl overflow-hidden relative">
-              {remoteStreamRef ? (
+              {remoteStream ? (
                 <video
                   ref={remoteVideoRef}
                   autoPlay
                   playsInline
-                  muted
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -260,7 +247,7 @@ const VideoCallScreen: React.FC = () => {
                 </div>
               )}
               <div className="absolute bottom-4 left-4 text-white text-sm bg-black/50 px-3 py-1 rounded-lg">
-                { remoteUserEmail }
+                {remoteUserEmail}
               </div>
             </div>
           </div>

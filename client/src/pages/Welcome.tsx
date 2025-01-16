@@ -1,11 +1,12 @@
 import React, { useEffect } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSocket } from "../hooks/useSocket";
+import { getSocketInstance } from "../services/socketService";
+
+const socket = getSocketInstance();
 
 const Welcome: React.FC = () => {
   const navigate = useNavigate();
-  const socket = useSocket();
   // Initializing socket connection with server in background
   useEffect(() => {
       return () => {
@@ -34,10 +35,11 @@ const Welcome: React.FC = () => {
       socket.emit("join-room", joinRoomformData);
       socket.on(
         "room-joined",
-        (info: { message: string; roomCode: string; roomMembers: string[]; }) => {
+        (info: { message: string; roomCode: string; role: string; roomMembers: string[]; }) => {
           navigate(`/lobby/${info.roomCode}`, {state: {
             email: joinRoomformData.email,
             roomCode: info.roomCode,
+            role: info.role,
             roomMembers: info.roomMembers
           }});
         }
@@ -52,13 +54,20 @@ const Welcome: React.FC = () => {
       socket.emit("create-room", createRoomFormData);
       socket.on(
         "room-created",
-        (info: { message: string; roomCode: string; roomMembers: string[]; }) => {
-          navigate(`/lobby/${info.roomCode}`, {state: {
-            email: createRoomFormData.email,
-            local: true,
-            roomCode: info.roomCode,
-            roomMembers: info.roomMembers
-          }});
+        (info: {
+          message: string;
+          roomCode: string;
+          role: string;
+          roomMembers: string[];
+        }) => {
+          navigate(`/lobby/${info.roomCode}`, {
+            state: {
+              email: createRoomFormData.email,
+              role: info.role,
+              roomCode: info.roomCode,
+              roomMembers: info.roomMembers,
+            },
+          });
         }
       );
     } else {
