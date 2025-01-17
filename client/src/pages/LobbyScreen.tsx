@@ -14,7 +14,6 @@ const LobbyScreen: React.FC = () => {
   const members : string[] = useLocation().state.roomMembers;
   console.log(members);
   const joineeEmail = useLocation().state.email;
-  const myRole = useLocation().state.role;
   const { roomCode } = useParams();
   const navigate = useNavigate();
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -142,10 +141,9 @@ const LobbyScreen: React.FC = () => {
           </div>
         </div>
         <button onClick={() => {
-            socket?.emit("join-video", {email: joineeEmail, roomCode: roomCode, role: myRole});
+            socket?.emit("join-video", {email: joineeEmail, roomCode: roomCode});
             navigate(`/${roomCode}`, {state: {
                 localEmail: joineeEmail,
-                role: myRole
             }})
         }} className="bg-white px-6 cursor-pointer hover:bg-slate-200 py-3 rounded-lg font-bold text-black ">
           Join Call

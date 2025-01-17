@@ -48,7 +48,7 @@ export const initSocket = (server: http.Server) => {
         roomMembers: rooms[roomCode]
       });
 
-      io?.to(roomCode).emit("user-joined", {
+      socket.to(roomCode).emit("user-joined", {
         userId: socket.id,
         userEmail: email
       });
@@ -71,10 +71,13 @@ export const initSocket = (server: http.Server) => {
 
     socket.on("join-video", (info : {
       email: string;
-      role: string;
       roomCode: string;
     }) => {
-      io?.to(info.roomCode).emit("user-joined-video", {email: info.email, role: info.role});
+      socket.to(info.roomCode).emit("user-joined-video", info.email);
+    })
+
+    socket.on("stream-fetched", (roomCode: string) => {
+      socket.to(roomCode).emit("stream-fetched");
     })
 
 
@@ -103,7 +106,7 @@ export const initSocket = (server: http.Server) => {
         roomCode: string;
       }) => {
         console.log("Answer received in room : ", roomCode);
-        io?.to(roomCode).emit("answer", answer);
+        socket.to(roomCode).emit("answer", answer);
       }
     );
      socket.on(
@@ -116,7 +119,7 @@ export const initSocket = (server: http.Server) => {
          roomCode: string;
        }) => {
          console.log(`ICE candidate ${candidate} received in room ${roomCode}`);
-         io?.to(roomCode).emit("ice-candidate", candidate); // Send the ICE candidate to other clients in the room
+         socket.to(roomCode).emit("ice-candidate", candidate); // Send the ICE candidate to other clients in the room
        }
      );
 
