@@ -77,7 +77,7 @@ export const initSocket = (server: http.Server) => {
     })
 
     socket.on("stream-fetched", (roomCode: string) => {
-      socket.to(roomCode).emit("stream-fetched");
+      socket.to(roomCode).emit("stream-fetched-by-other-user");
     })
 
 
