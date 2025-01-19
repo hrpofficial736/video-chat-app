@@ -30,7 +30,7 @@ export const initSocket = (server: http.Server) => {
     socket.on("join-room", (info: JoiningUserInfo) => {
       const { email, roomCode } = info;
       console.log(info);
-      
+
       if (!rooms[roomCode]) {
         rooms[roomCode] = [];
       }
@@ -40,17 +40,17 @@ export const initSocket = (server: http.Server) => {
 
       console.log(`Room ${roomCode} joined by ${email}.`);
       console.log(rooms[roomCode]);
-      
+
       socket.emit("room-joined", {
         message: `Room ${roomCode} joined by ${email}.`,
         roomCode: roomCode,
         role: "member",
-        roomMembers: rooms[roomCode]
+        roomMembers: rooms[roomCode],
       });
 
       socket.to(roomCode).emit("user-joined", {
         userId: socket.id,
-        userEmail: email
+        userEmail: email,
       });
     });
     socket.on("create-room", (info) => {
@@ -64,23 +64,25 @@ export const initSocket = (server: http.Server) => {
         message: `Room created by ${email} with room-code : ${roomCode}`,
         roomCode: roomCode,
         role: "owner",
-        roomMembers: rooms[roomCode]
+        roomMembers: rooms[roomCode],
       });
     });
 
-
-    socket.on("join-video", (info : {
-      email: string;
-      roomCode: string;
-    }) => {
+    socket.on("join-video", (info: { email: string; roomCode: string }) => {
       socket.to(info.roomCode).emit("user-joined-video", info.email);
-    })
+      socket.emit(
+        "existing-user-email",
+        rooms[info.roomCode].filter((email) => email !== info.email)[0],
+      );
+    });
 
-    socket.on("stream-fetched", (roomCode: string) => {
-      socket.to(roomCode).emit("stream-fetched-by-other-user");
-    })
+    socket.on("toggled-local-audio", (roomCode: string) => {
+      socket.to(roomCode).emit("toggle-audio");
+    });
 
-
+    socket.on("toggled-local-video", (roomCode: string) => {
+      socket.to(roomCode).emit("toggle-video");
+    });
 
     socket.on(
       "offer",
@@ -93,7 +95,7 @@ export const initSocket = (server: http.Server) => {
       }) => {
         console.log(`Offer ${offer} received in room :  ${roomCode}`);
         socket.to(roomCode).emit("offer", offer);
-      }
+      },
     );
 
     socket.on(
@@ -107,21 +109,21 @@ export const initSocket = (server: http.Server) => {
       }) => {
         console.log("Answer received in room : ", roomCode);
         socket.to(roomCode).emit("answer", answer);
-      }
+      },
     );
-     socket.on(
-       "ice-candidate",
-       ({
-         candidate,
-         roomCode,
-       }: {
-         candidate: RTCIceCandidateInit;
-         roomCode: string;
-       }) => {
-         console.log(`ICE candidate ${candidate} received in room ${roomCode}`);
-         socket.to(roomCode).emit("ice-candidate", candidate); // Send the ICE candidate to other clients in the room
-       }
-     );
+    socket.on(
+      "ice-candidate",
+      ({
+        candidate,
+        roomCode,
+      }: {
+        candidate: RTCIceCandidateInit;
+        roomCode: string;
+      }) => {
+        console.log(`ICE candidate ${candidate} received in room ${roomCode}`);
+        socket.to(roomCode).emit("ice-candidate", candidate); // Send the ICE candidate to other clients in the room
+      },
+    );
 
     socket.on("disconnect", () => {
       console.log("A user disconnected:", socket.id);

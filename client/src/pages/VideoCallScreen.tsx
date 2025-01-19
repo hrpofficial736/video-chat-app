@@ -13,7 +13,7 @@ import { getSocketInstance } from "../services/socketService";
 const VideoCallScreen: React.FC = () => {
   const { roomCode } = useParams();
   const socket = getSocketInstance();
-  const joineeEmail = useLocation().state.email;
+  const joineeEmail = useLocation().state.localEmail;
 
   // Remote User Email
   const [remoteUserEmail, setRemoteUserEmail] = useState<string | null>(null);
@@ -23,11 +23,54 @@ const VideoCallScreen: React.FC = () => {
   const [videoAllowed, setVideoAllowed] = useState<boolean>(true);
 
   const toggleAudio = () => {
+    localStream?.getAudioTracks().forEach((track) => {
+      track.enabled = !track.enabled; // Toggle the current state
+    });
+
+    socket?.emit("toggled-local-audio", roomCode);
     setAudioAllowed((prevAudioAllowed) => !prevAudioAllowed);
   };
 
   const toggleVideo = () => {
+    localStream?.getVideoTracks().forEach((track) => {
+      if (track.enabled === true) track.enabled = false;
+      else track.enabled = true;
+    });
+    socket?.emit("toggled-local-video", roomCode);
     setVideoAllowed((prevVideoAllowed) => !prevVideoAllowed);
+    console.log("Video Allowed: ", videoAllowed);
+  };
+
+  const [remoteAudioAllowed, setRemoteAudioAllowed] = useState<boolean>();
+  const [remoteVideoAllowed, setRemoteVideoAllowed] = useState<boolean>();
+
+  const toggleRemoteAudio = () => {
+    if (!remoteStream) {
+      console.error("Remote stream is not available.");
+      return;
+    }
+
+    // Toggle the enabled property of each audio track
+    remoteStream.getAudioTracks().forEach((track) => {
+      track.enabled = !track.enabled; // Toggle the current state
+    });
+
+    // Update the state to reflect the new status
+    setRemoteAudioAllowed((prevState) => !prevState);
+  };
+  const toggleRemoteVideo = () => {
+    if (!remoteStream) {
+      console.error("Remote stream is not available.");
+      return;
+    }
+
+    // Toggle the enabled property of each audio track
+    remoteStream.getVideoTracks().forEach((track) => {
+      track.enabled = !track.enabled; // Toggle the current state
+    });
+
+    // Update the state to reflect the new status
+    setRemoteVideoAllowed((prevState) => !prevState);
   };
 
   const iceCandidatesQueue = useRef<RTCIceCandidate[]>([]);
@@ -215,10 +258,21 @@ const VideoCallScreen: React.FC = () => {
       createConnectionOffer();
     };
 
+    const fetchExistingUserEmail = (email: string) => {
+      setRemoteUserEmail(email);
+    };
+
     socket?.on("offer", handleOffer);
     socket?.on("answer", handleAnswer);
     socket?.on("ice-candidate", handleIceCandidate);
     socket?.on("user-joined-video", handleUserJoined);
+    socket?.on("existing-user-email", fetchExistingUserEmail);
+    socket?.on("toggle-video", () => {
+      toggleRemoteVideo();
+    });
+    socket?.on("toggle-audio", () => {
+      toggleRemoteAudio();
+    });
 
     return () => {
       if (localStream) {
@@ -288,9 +342,10 @@ const VideoCallScreen: React.FC = () => {
           <div className="w-[70%] h-full bg-zinc-900 rounded-xl p-4 flex gap-x-5">
             {/* Local Video */}
             <div className="w-1/2 bg-zinc-800 rounded-xl overflow-hidden relative">
-              {videoAllowed ? (
+              {localStream?.getVideoTracks()[0]?.enabled ? (
                 <video
                   ref={localVideoRef}
+                  muted={!audioAllowed}
                   autoPlay
                   playsInline
                   className="w-full h-full object-cover"
@@ -310,12 +365,15 @@ const VideoCallScreen: React.FC = () => {
 
             {/* Remote Video */}
             <div className="w-1/2 bg-zinc-800 rounded-xl overflow-hidden relative">
-              <video
-                ref={remoteVideoRef}
-                autoPlay
-                playsInline
-                className="w-full h-full object-cover"
-              />
+              {remoteVideoAllowed && (
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  muted={!remoteAudioAllowed}
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              )}
               {!remoteStream && (
                 <div className="w-full h-full flex flex-col gap-y-5 justify-center items-center">
                   <div className="rounded-full w-20 h-20 bg-blue-500 flex justify-center items-center text-white text-2xl font-bold">
